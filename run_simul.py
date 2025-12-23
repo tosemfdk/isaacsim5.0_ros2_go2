@@ -21,51 +21,44 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import time
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 
-from go2.go2_env import Myscene
+from go2.go2_env import go2_rl_env, Go2RLEnvCfg
+
+
+
+    
+
+
 
 
 FILE_PATH = os.path.join(os.path.dirname(__file__), "config")
 @hydra.main(config_path=FILE_PATH, config_name="sim", version_base=None)
 def run_simulator(cfg):
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
-    scene_cfg = Myscene(num_envs=cfg.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # play the simulator
-    sim.reset()
-    print("[INFO]: simulation started")
-    sim_dt = sim.get_physics_dt()
-    count = 0
-    robot = scene["go2"]
-    while simulation_app.is_running():
-        if count % 300 == 0:
-            count = 0
-            root_state = robot.data.default_root_state.clone()
-            root_state[:,:3] += scene.env_origins
-            robot.write_root_pose_to_sim(root_state[:,:7])
-            robot.write_root_velocity_to_sim(root_state[:,7:])
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
-            joint_pos += torch.rand_like(joint_pos) * 0.1
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
-            scene.reset()
-            print("[INFO]: Resetting robot scene")
 
-        joint_pos_target = torch.randn_like(robot.data.joint_pos) * 0.1
-        # apply action to the robot
-        robot.set_joint_position_target(joint_pos_target)
-        # -- write data to sim
-        scene.write_data_to_sim()
-        # Perform step
-        sim.step()
-        # Increment counter
-        count += 1
-        # Update buffers
-        scene.update(sim_dt)        
+    env, policy = go2_rl_env(Go2RLEnvCfg(), cfg)
+    obs, _ = env.get_observations()
+    sim = env.unwrapped.sim 
+    sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
+
+    print("[INFO]: simulation started")
+    
+    dt = env.unwrapped.step_dt
+
+    while simulation_app.is_running():
+        start_time = time.time()
+        with torch.inference_mode():
+                actions = policy(obs)
+                obs, _, _, _ = env.step(actions)
+
+        sleep_time = dt - (time.time() - start_time)
+        
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+
     simulation_app.close()
 
 if __name__ == "__main__":

@@ -19,3 +19,5 @@ sim_app:
   width: 1280
   height: 720
   hide_ui: False
+
+agent_cfg_path: "config/agent.yaml"
