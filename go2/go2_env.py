@@ -161,8 +161,8 @@ class Go2RLEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # viewer settings
-        self.viewer.eye = [-4.0, 0.0, 5.0]
-        self.viewer.lookat = [0.0, 0.0, 0.0]
+        self.viewer.eye = [-4.0, 0.0, 2.0]
+        self.viewer.lookat = [0.5, 0.5, 0.0]
         
         # general settings
         self.decimation = 8

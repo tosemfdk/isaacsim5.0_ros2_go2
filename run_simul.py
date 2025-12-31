@@ -29,7 +29,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 
 from go2.go2_env import go2_rl_env, Go2RLEnvCfg
-
+from envs.usdz_import import GS_import
 
 FILE_PATH = os.path.join(os.path.dirname(__file__), "config")
 @hydra.main(config_path=FILE_PATH, config_name="sim", version_base=None)
@@ -66,5 +66,6 @@ def run_simulator(cfg):
     simulation_app.close()
 
 if __name__ == "__main__":
+    GS_import()
     run_simulator()
     
