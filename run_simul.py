@@ -1,6 +1,5 @@
 import os
 import hydra
-import rclpy
 import torch
 import time
 import math
@@ -19,6 +18,17 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+import omni.kit.app
+ext_manager = omni.kit.app.get_app().get_extension_manager()
+
+# 확장 프로그램 활성화 (최신 ID 사용 권장)
+extension_id = "isaacsim.ros2.bridge" 
+ext_manager.set_extension_enabled_immediate(extension_id, True)
+
+# 중요: "즉시" 활성화를 명령했더라도, OmniGraph 노드 등록을 위해 엔진 업데이트가 필요합니다.
+for _ in range(30):
+    simulation_app.update()
 
 """Rest everything follows."""
 
@@ -51,23 +61,23 @@ def run_simulator(cfg):
 
     # Sensor setup
     sm = sensor_manager(cfg.num_envs)
-    # cameras = sm.create_camera()
+    # cameras, lidars
     lidar_annotators = sm.create_lidar()
+    cameras = env.unwrapped.scene["front_cam"]
 
     # Keyboard control
     system_input = carb.input.acquire_input_interface()
     system_input.subscribe_to_keyboard_events(omni.appwindow.get_default_app_window().get_keyboard(), go2_ctrl.sub_keyboard_event)
     
     # ROS2 Bridge
-    rclpy.init()
+    dm = go2_ros2_bridge.RobotDataManager(env, lidar_annotators, cameras, cfg)
+
     #run simulation
     dt = float(go2_env_cfg.sim.dt * go2_env_cfg.decimation)
-    obs, _ = env.reset()
-    cameras = env.unwrapped.scene["front_cam"]
-    dm = go2_ros2_bridge.RobotDataManager(env, lidar_annotators, cameras, cfg)
 
     print("[INFO]: simulation started")
 
+    obs, _ = env.reset()
 
     while simulation_app.is_running():
         start_time = time.time()
@@ -77,9 +87,6 @@ def run_simulator(cfg):
 
                 obs, _, _, _ = env.step(actions)
 
-                # ROS2 data
-                dm.pub_ros2_data()
-                rclpy.spin_once(dm)
 
         elapsed_time = time.time() - start_time
 
@@ -95,6 +102,6 @@ def run_simulator(cfg):
     simulation_app.close()
 
 if __name__ == "__main__":
-    GS_import()
+    # GS_import()
     run_simulator()
     

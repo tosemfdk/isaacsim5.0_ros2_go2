@@ -39,7 +39,7 @@ class sensor_manager:
 
 
     def create_lidar(self):
-        lidar_annotators = []
+        lidar_sensors = []
 
         sensor_attributes = {'omni:sensor:Core:scanRateBaseHz': 20}
 
@@ -55,16 +55,8 @@ class sensor_manager:
                 config="Example_Rotary",
                 **sensor_attributes,
             )
-            
+        
 
-            # Create a render product for the sensor.
-            render_product = rep.create.render_product(sensor.GetPath(), resolution=(1024, 1024))
-            # Create an annotator
-            annotator = rep.AnnotatorRegistry.get_annotator("IsaacExtractRTXSensorPointCloudNoAccumulator")
+            lidar_sensors.append(sensor)
 
-            # Attach the render product after the annotator is initialized.
-            annotator.attach([render_product.path])
-
-            lidar_annotators.append(annotator)
-
-        return lidar_annotators
+        return lidar_sensors
