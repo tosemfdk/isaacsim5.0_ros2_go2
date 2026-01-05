@@ -26,9 +26,6 @@ ext_manager = omni.kit.app.get_app().get_extension_manager()
 extension_id = "isaacsim.ros2.bridge" 
 ext_manager.set_extension_enabled_immediate(extension_id, True)
 
-# 중요: "즉시" 활성화를 명령했더라도, OmniGraph 노드 등록을 위해 엔진 업데이트가 필요합니다.
-for _ in range(30):
-    simulation_app.update()
 
 """Rest everything follows."""
 
@@ -46,6 +43,7 @@ from go2.go2_env import go2_rl_env, Go2RLEnvCfg
 from envs.usdz_import import GS_import
 from go2.go2_sensors import sensor_manager
 import ros2.go2_ros2_bridge as go2_ros2_bridge
+import envs.sim_env as sim_env
 
 
 FILE_PATH = os.path.join(os.path.dirname(__file__), "config")
@@ -57,27 +55,41 @@ def run_simulator(cfg):
     go2_ctrl.init_base_vel_cmd(cfg.num_envs)
 
     env, policy = go2_rl_env(go2_env_cfg, cfg)
-    time.sleep(10)
+
+
+    # Simulation environment
+    if (cfg.env_name == "warehouse"):
+        sim_env.create_warehouse_env() # warehouse
+    elif (cfg.env_name == "warehouse-forklifts"):
+        sim_env.create_warehouse_forklifts_env() # warehouse forklifts
+    elif (cfg.env_name == "warehouse-shelves"):
+        sim_env.create_warehouse_shelves_env() # warehouse shelves
+    elif (cfg.env_name == "full-warehouse"):
+        sim_env.create_full_warehouse_env() # full warehouse
+    elif (cfg.env_name == "office"):
+        sim_env.create_office_env() # office
 
     # Sensor setup
     sm = sensor_manager(cfg.num_envs)
     # cameras, lidars
-    lidar_annotators = sm.create_lidar()
+    lidars = sm.create_lidar()
     cameras = env.unwrapped.scene["front_cam"]
 
     # Keyboard control
     system_input = carb.input.acquire_input_interface()
     system_input.subscribe_to_keyboard_events(omni.appwindow.get_default_app_window().get_keyboard(), go2_ctrl.sub_keyboard_event)
     
+    print("[INFO]: simulation started")
+
+    obs, _ = env.reset()
+
     # ROS2 Bridge
-    dm = go2_ros2_bridge.RobotDataManager(env, lidar_annotators, cameras, cfg)
+    dm = go2_ros2_bridge.RobotDataManager(env, lidars, cameras, cfg)
 
     #run simulation
     dt = float(go2_env_cfg.sim.dt * go2_env_cfg.decimation)
 
-    print("[INFO]: simulation started")
 
-    obs, _ = env.reset()
 
     while simulation_app.is_running():
         start_time = time.time()
@@ -98,7 +110,6 @@ def run_simulator(cfg):
         rtf = min(1.0, dt/elapsed_time)
         print(f"\rStep time: {actual_loop_time*1000:.2f}ms, Real Time Factor: {rtf:.2f}", end='', flush=True)
     dm.destroy_node()
-    rclpy.shutdown()
     simulation_app.close()
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 defaults:
   - _self_
 
-num_envs: 1
+num_envs: 2
 freq: 40 # can onl be divisible by 20y0
 camera_follow: True
-env_name: obstacle-dense
+env_name: office
 # env_name: full-warehouse
 
 sensor:

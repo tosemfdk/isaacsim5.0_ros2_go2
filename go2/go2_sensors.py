@@ -48,11 +48,11 @@ class sensor_manager:
             # Create the RTX Lidar with the specified attributes.
             _, sensor = omni.kit.commands.execute(
                 "IsaacSensorCreateRtxLidar",
-                translation=Gf.Vec3d(0.0, 0.0, 0.0),
+                translation=Gf.Vec3d(0.0, 0.0, 0.25),
                 orientation=Gf.Quatd(1.0, 0.0, 0.0, 0.0),
                 path="lidar",
                 parent=f"/World/envs/env_{env_idx}/Go2/base",
-                config="Example_Rotary",
+                config="Hesai_XT32_SD10",
                 **sensor_attributes,
             )
         
