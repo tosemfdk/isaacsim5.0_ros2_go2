@@ -14,10 +14,11 @@ parser = argparse.ArgumentParser(description="Unitree go2 ros2 setup")
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
+args_cli.kit_args = "--/renderer/multiGpu/enabled=true --/renderer/multiGpu/maxGpuCount=2" 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
 
 import omni.kit.app
 ext_manager = omni.kit.app.get_app().get_extension_manager()
@@ -52,6 +53,7 @@ def run_simulator(cfg):
     go2_env_cfg = Go2RLEnvCfg()
     go2_env_cfg.decimation = math.ceil(1./go2_env_cfg.sim.dt/cfg.freq)
     go2_env_cfg.sim.render_interval = go2_env_cfg.decimation
+    go2_env_cfg.scene.num_envs = cfg.num_envs
     go2_ctrl.init_base_vel_cmd(cfg.num_envs)
 
     env, policy = go2_rl_env(go2_env_cfg, cfg)
@@ -75,6 +77,9 @@ def run_simulator(cfg):
     lidars = sm.create_lidar()
     cameras = env.unwrapped.scene["front_cam"]
 
+    # ROS2 Bridge
+    dm = go2_ros2_bridge.RobotDataManager(env, lidars, cameras, cfg)
+
     # Keyboard control
     system_input = carb.input.acquire_input_interface()
     system_input.subscribe_to_keyboard_events(omni.appwindow.get_default_app_window().get_keyboard(), go2_ctrl.sub_keyboard_event)
@@ -82,9 +87,6 @@ def run_simulator(cfg):
     print("[INFO]: simulation started")
 
     obs, _ = env.reset()
-
-    # ROS2 Bridge
-    dm = go2_ros2_bridge.RobotDataManager(env, lidars, cameras, cfg)
 
     #run simulation
     dt = float(go2_env_cfg.sim.dt * go2_env_cfg.decimation)
@@ -100,6 +102,8 @@ def run_simulator(cfg):
                 obs, _, _, _ = env.step(actions)
 
 
+        dm.update()
+        # dm.update_tf()
         elapsed_time = time.time() - start_time
 
         sleep_time = dt - (elapsed_time)

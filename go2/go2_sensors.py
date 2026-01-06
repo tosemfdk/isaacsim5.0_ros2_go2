@@ -44,6 +44,14 @@ class sensor_manager:
         sensor_attributes = {'omni:sensor:Core:scanRateBaseHz': 20}
 
         for env_idx in range(self.num_envs):
+            parent_path = f"/World/envs/env_{env_idx}/Go2/base"
+
+            # [수정] 부모 프림이 존재하는지 확인 루틴 추가
+            import omni.usd
+            stage = omni.usd.get_context().get_stage()
+            if not stage.GetPrimAtPath(parent_path).IsValid():
+                print(f"[WARN] {parent_path} 가 아직 생성되지 않았습니다. 생성을 건너뜁니다.")
+                continue
 
             # Create the RTX Lidar with the specified attributes.
             _, sensor = omni.kit.commands.execute(
@@ -52,7 +60,7 @@ class sensor_manager:
                 orientation=Gf.Quatd(1.0, 0.0, 0.0, 0.0),
                 path="lidar",
                 parent=f"/World/envs/env_{env_idx}/Go2/base",
-                config="Hesai_XT32_SD10",
+                config="Example_Rotatory",
                 **sensor_attributes,
             )
         

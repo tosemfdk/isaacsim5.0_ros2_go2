@@ -37,8 +37,8 @@ class Myscene(InteractiveSceneCfg):
 
     front_cam = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Go2/base/front_cam",
-        update_period=0.0,                      
-        data_types=["rgb", "depth"],              
+        update_period=0.05,                      
+        data_types=["rgb"],              
         spawn=sim_utils.PinholeCameraCfg(),             
         width=640,                                       
         height=480,                                      
@@ -162,7 +162,7 @@ class CurriculumCfg:
 class Go2RLEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the RL environment."""
     # Scene settings
-    scene: Myscene = Myscene(num_envs=1, env_spacing=2.5)
+    scene: Myscene = Myscene(num_envs=2, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -188,7 +188,6 @@ class Go2RLEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation 
-        self.sim.disable_contact_processing = True
         self.sim.render.antialiasing_mode = None
 
         if self.scene.height_scanner is not None:

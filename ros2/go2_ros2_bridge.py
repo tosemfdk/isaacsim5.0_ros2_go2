@@ -1,7 +1,6 @@
 import omni.graph.core as og
 import omni.replicator.core as rep
 import omni.kit.commands
-
 class RobotDataManager:
     def __init__(self, env, lidar_sensors, cameras, cfg):
         self.env = env
@@ -18,9 +17,7 @@ class RobotDataManager:
         # 3. 공통 데이터(Clock 등) 발행용 OmniGraph 설정
         self._setup_global_omnigraph()
 
-        # self._setup_odom_publishers()
-
-        # self._setup_tf_and_joint_publishers()
+        self._setup_odom_publishers()
 
     def _setup_camera_publishers(self):
         """라이터 대신 OmniGraph의 ROS2 Camera Helper 노드를 직접 생성"""
@@ -49,6 +46,7 @@ class RobotDataManager:
                                 ("cameraHelperRgb.inputs:frameId", f"front_cam_link_{i}"),
                                 ("cameraHelperRgb.inputs:topicName", f"env_{i}/unitree_go2/front_cam/rgb"),
                                 ("cameraHelperRgb.inputs:type", "rgb"),
+                                ("cameraHelperRgb.inputs:frameSkipCount", 5),
                             ],
                         },
                     )
@@ -60,7 +58,7 @@ class RobotDataManager:
         if self.lidar_sensors is not None:
             for i, annotator in enumerate(self.lidar_sensors):
                 # 1. 렌더 제품 경로 가져오기 (문서의 renderProductPath 입력값)
-                render_product_obj = rep.create.render_product(annotator.GetPath(), resolution=[1024, 1024], name="Isaac")
+                render_product_obj = rep.create.render_product(annotator.GetPath(), resolution=[1024, 64], name="Isaac")
                 render_product_path = render_product_obj.path
                 # 2. 각 환경별 고유 그래프 경로
                 graph_path = f"/World/Lidar_ROS_Graph_env_{i}"
@@ -82,6 +80,7 @@ class RobotDataManager:
                             ("LidarHelper.inputs:frameId", f"go2_lidar{i}"),
                             ("LidarHelper.inputs:type", "point_cloud"), 
                             ("LidarHelper.inputs:fullScan", True), 
+                            ("LidarHelper.inputs:frameSkipCount", 10),
                             ("LidarHelper.inputs:resetSimulationTimeOnStop", True),
                         ],
                     },
@@ -89,95 +88,31 @@ class RobotDataManager:
                 print(f"[Bridge] LiDAR Helper Node (Env {i}) created successfully.")
 
 
+
+
     def _setup_odom_publishers(self):
-            """로봇의 상태를 계산하여 ROS 2 Odometry 토픽으로 발행"""
-            for i in range(self.num_envs):
-                # 로봇의 베이스 프라이드 경로 (이전 코드 기준)
-                robot_base_path = f"/World/envs/env_{i}/Go2/base"
-                graph_path = f"/World/Odom_ROS_Graph_env_{i}"
-                
-                try:
-                    og.Controller.edit(
-                        {"graph_path": graph_path, "evaluator_name": "execution"},
-                        {
-                            og.Controller.Keys.CREATE_NODES: [
-                                ("OnTick", "omni.graph.action.OnTick"),
-                                ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
-                                ("ComputeOdom", "isaacsim.core.nodes.IsaacComputeOdometry"),
-                                ("PublishOdom", "isaacsim.ros2.bridge.ROS2PublishOdometry"),
-                            ],
-                            og.Controller.Keys.SET_VALUES: [
-                                ("ComputeOdom.inputs:chassisPrim", robot_base_path),
-                                ("PublishOdom.inputs:topicName", f"env_{i}/unitree_go2/odom"),
-                                ("PublishOdom.inputs:odomFrameId", f"odom_{i}"),
-                                ("PublishOdom.inputs:chassisFrameId", f"base_link_{i}"),
-                            ],
-                            og.Controller.Keys.CONNECT: [
-                                ("OnTick.outputs:tick", "ComputeOdom.inputs:execIn"),
-                                ("ComputeOdom.outputs:execOut", "PublishOdom.inputs:execIn"),
-                                ("ComputeOdom.outputs:position", "PublishOdom.inputs:position"),
-                                ("ComputeOdom.outputs:orientation", "PublishOdom.inputs:orientation"),
-                                ("ComputeOdom.outputs:linearVelocity", "PublishOdom.inputs:linearVelocity"),
-                                ("ComputeOdom.outputs:angularVelocity", "PublishOdom.inputs:angularVelocity"),
-                                ("ReadSimTime.outputs:simulationTime", "PublishOdom.inputs:timeStamp"),
-                            ],
-                        },
-                    )
-                    print(f"[Bridge] Odometry Publisher created for Env {i}")
-                except Exception as e:
-                    print(f"[Error] Failed to create Odometry Helper for Env {i}: {e}")
-
-
-
-    def _setup_tf_and_joint_publishers(self):
-            """TF Tree 및 Joint States 발행 설정"""
-            for i in range(self.num_envs):
-                physics_base_path = f"/World/envs/env_{i}/Go2/base" # 로봇 루트 (Articulation)
-                graph_path = f"/World/TF_Joint_Graph_env_{i}"
-                
-                try:
-                    og.Controller.edit(
-                        {"graph_path": graph_path, "evaluator_name": "execution"},
-                        {
-                            og.Controller.Keys.CREATE_NODES: [
-                                ("OnTick", "omni.graph.action.OnTick"),
-                                ("ReadSimTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
-                                # 1. TF 발행 노드 (Odom -> Base_link 등 동적 변환)
-                                ("PublishTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"),
-                                # 2. Static TF 발행 노드 (고정된 관절 구조)
-                                ("PublishStaticTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"),
-                                # 3. Joint State 발행 노드
-                                ("PublishJointState", "isaacsim.ros2.bridge.ROS2PublishJointState"),
-                            ],
-                            og.Controller.Keys.SET_VALUES: [
-                                # [TF 설정] 동적: odom_{i} -> base_link_{i}
-                                ("PublishTF.inputs:parentPrim", f"/World/envs/env_{i}"), # odom 대신 환경 루트를 부모로 설정 가능
-                                ("PublishTF.inputs:targetPrims", [physics_base_path]),
-                                ("PublishTF.inputs:nodeNamespace", f"env_{i}"),
-                                
-                                # [Static TF 설정] 고정: 로봇의 전체 관절 트리
-                                ("PublishStaticTF.inputs:targetPrims", [physics_base_path]),
-                                ("PublishStaticTF.inputs:staticPublisher", True), # Static Broadcaster 역할
-                                ("PublishStaticTF.inputs:nodeNamespace", f"env_{i}"),
-                                
-                                # [Joint State 설정]
-                                ("PublishJointState.inputs:targetPrim", physics_base_path),
-                                ("PublishJointState.inputs:topicName", f"env_{i}/joint_states"),
-                            ],
-                            og.Controller.Keys.CONNECT: [
-                                ("OnTick.outputs:tick", "PublishTF.inputs:execIn"),
-                                ("OnTick.outputs:tick", "PublishStaticTF.inputs:execIn"),
-                                ("OnTick.outputs:tick", "PublishJointState.inputs:execIn"),
-                                
-                                ("ReadSimTime.outputs:simulationTime", "PublishTF.inputs:timeStamp"),
-                                ("ReadSimTime.outputs:simulationTime", "PublishStaticTF.inputs:timeStamp"),
-                                ("ReadSimTime.outputs:simulationTime", "PublishJointState.inputs:timeStamp"),
-                            ],
-                        },
-                    )
-                    print(f"[Bridge] TF and JointState Publishers created for Env {i}")
-                except Exception as e:
-                    print(f"[Error] Failed to create TF/Joint Helpers for Env {i}: {e}")
+        """데이터 주입을 위한 ROS 2 Publish Odometry 노드만 생성"""
+        for i in range(self.num_envs):
+            graph_path = f"/World/Odom_ROS_Graph_env_{i}"
+            
+            try:
+                og.Controller.edit(
+                    {"graph_path": graph_path, "evaluator_name": "push"},
+                    {
+                        og.Controller.Keys.CREATE_NODES: [
+                            # OnTick은 이제 필요하지 않습니다. Python에서 직접 실행(execIn)을 때려줄 것이기 때문입니다.
+                            ("PublishOdom", "isaacsim.ros2.bridge.ROS2PublishOdometry"),
+                        ],
+                        og.Controller.Keys.SET_VALUES: [
+                            ("PublishOdom.inputs:topicName", f"env_{i}/unitree_go2/odom"),
+                            ("PublishOdom.inputs:odomFrameId", f"odom_{i}"),
+                            ("PublishOdom.inputs:chassisFrameId", f"base_link_{i}"),
+                        ],
+                    },
+                )
+                print(f"[Bridge] Odometry Publisher Node created for Env {i}")
+            except Exception as e:
+                print(f"[Error] Failed to create Odometry Publisher for Env {i}: {e}")
 
 
 
@@ -186,7 +121,7 @@ class RobotDataManager:
         """시뮬레이션 시간(/clock) 발행 (모든 환경 공통)"""
         try:
             og.Controller.edit(
-                {"graph_path": "/World/Push_ROS2_Clock", "evaluator_name": "execution"},
+                {"graph_path": "/World/Push_ROS2_Clock", "evaluator_name": "execpushution"},
                 {
                     og.Controller.Keys.CREATE_NODES: [
                         ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
@@ -202,3 +137,38 @@ class RobotDataManager:
         except Exception as e:
             print(f"[Error] Global OmniGraph setup error: {e}")
 
+    # RobotDataManager 클래스 내부
+    def update(self):
+        """매 프레임마다 호출되어 ROS 2 데이터를 업데이트"""
+        # Isaac Lab Tensor 데이터 가져오기 (unitree_go2는 Scene에 등록된 이름)
+        robot_data = self.env.unwrapped.scene["go2"].data
+        
+        # 시뮬레이션 시간 가져오기
+        current_sim_time = self.env.unwrapped.sim.current_time
+
+        for i in range(self.num_envs):
+            # 그래프 상의 PublishOdom 노드 경로
+            odom_node_path = f"/World/Odom_ROS_Graph_env_{i}/PublishOdom"
+            
+            # 1. 위치 및 자세 (Root State: [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z])
+            pos = robot_data.root_state_w[i, :3].tolist()
+            # Isaac Lab(WXYZ) -> ROS 2(XYZW) 변환
+            quat_wxyz = robot_data.root_state_w[i, 3:7]
+            quat_xyzw = [quat_wxyz[1].item(), quat_wxyz[2].item(), quat_wxyz[3].item(), quat_wxyz[0].item()]
+            
+            # 2. 선속도 및 각속도 (Body Frame 기준)
+            lin_vel = robot_data.root_lin_vel_b[i].tolist()
+            ang_vel = robot_data.root_ang_vel_b[i].tolist()
+
+            try:
+                # OmniGraph 노드 속성에 직접 값 주입 (GPU -> ROS Bridge 데이터 흐름)
+                og.Controller.set(og.Controller.attribute(f"{odom_node_path}.inputs:position"), pos)
+                og.Controller.set(og.Controller.attribute(f"{odom_node_path}.inputs:orientation"), quat_xyzw)
+                og.Controller.set(og.Controller.attribute(f"{odom_node_path}.inputs:linearVelocity"), lin_vel)
+                og.Controller.set(og.Controller.attribute(f"{odom_node_path}.inputs:angularVelocity"), ang_vel)
+                og.Controller.set(og.Controller.attribute(f"{odom_node_path}.inputs:timeStamp"), current_sim_time)
+                
+                # TF 업데이트가 필요한 경우 여기서 추가로 처리 가능
+            except Exception as e:
+                # 시뮬레이션 초기화 단계에서 노드가 아직 없을 때 에러 방지
+                pass
