@@ -2,9 +2,9 @@ defaults:
   - _self_
 
 num_envs: 2
-freq: 40 # can onl be divisible by 20y0
+freq: 40 # can onl be divisible by 20
 camera_follow: True
-env_name: office
+env_name: warehouse
 # env_name: full-warehouse
 
 sensor:
@@ -13,6 +13,12 @@ sensor:
   color_image: True
   depth_image: True
   semantic_segmentation: True
+  camera:
+    pos: [0.5, 0.0, 0.1]
+    rot: [1.0, 0.0, 0.0, 0.0] # WXYZ
+  lidar:
+    pos: [0.0, 0.0, 0.25]
+    rot: [1.0, 0.0, 0.0, 0.0] # WXYZ
 
 sim_app:
   anti_aliasing: 0

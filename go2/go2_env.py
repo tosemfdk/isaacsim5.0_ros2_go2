@@ -19,8 +19,11 @@ from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab.sensors import Camera, CameraCfg
 
 
+
 import gymnasium as gym
 import yaml, os
+import torch
+import go2.go2_ctrl as go2_ctrl
 
 
 @configclass
@@ -67,17 +70,13 @@ class Myscene(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the environment."""
-    base_velocity = mdp.UniformVelocityCommandCfg(
+    """Command specifications for the MDP."""
+    velocity_commands = mdp.UniformVelocityCommandCfg(
         asset_name="go2",
-        resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
-        heading_command=True,
-        heading_control_stiffness=0.5,
+        resampling_time_range=(0.0, 0.0),
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-3.14, 3.14)
+            lin_vel_x=(0.0, 0.0), lin_vel_y=(0.0, 0.0), ang_vel_z=(0.0, 0.0), heading=(0, 0)
         ),
     )
 
@@ -96,7 +95,7 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, params={"asset_cfg": SceneEntityCfg("go2")})
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, params={"asset_cfg": SceneEntityCfg("go2")})
         projected_gravity = ObsTerm(func=mdp.projected_gravity, params={"asset_cfg": SceneEntityCfg("go2")})
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        velocity_commands = ObsTerm(func=go2_ctrl.base_vel_cmd)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": SceneEntityCfg("go2")})
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": SceneEntityCfg("go2")})
         actions = ObsTerm(func=mdp.last_action)

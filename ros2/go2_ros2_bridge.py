@@ -1,6 +1,10 @@
 import omni.graph.core as og
 import omni.replicator.core as rep
 import omni.kit.commands
+import rclpy
+from geometry_msgs.msg import Twist
+import go2.go2_ctrl as go2_ctrl
+
 class RobotDataManager:
     def __init__(self, env, lidar_sensors, cameras, cfg):
         self.env = env
@@ -8,6 +12,11 @@ class RobotDataManager:
         self.lidar_sensors = lidar_sensors
         self.cameras = cameras
         
+        # ROS 2 노드 초기화 (구독자용)
+        if not rclpy.ok():
+            rclpy.init()
+        self.node = rclpy.create_node("go2_robot_data_manager")
+
         # 1. 카메라 발행기 설정 (루프 처리)
         self._setup_camera_publishers()
         
@@ -18,6 +27,32 @@ class RobotDataManager:
         self._setup_global_omnigraph()
 
         self._setup_odom_publishers()
+
+        # 4. 속도 명령(cmd_vel) 구독자 설정 (다중 환경인 경우)
+        if self.num_envs > 1:
+            self._setup_cmd_vel_subscribers()
+
+    def _setup_cmd_vel_subscribers(self):
+        """각 환경별 cmd_vel 토픽 구독 설정"""
+        self._velocity_subs = []
+        for i in range(self.num_envs):
+            topic_name = f"env_{i}/unitree_go2/cmd_vel"
+            # 클로저를 사용하여 인덱스 i를 캡처
+            sub = self.node.create_subscription(
+                Twist,
+                topic_name,
+                lambda msg, idx=i: self._cmd_vel_callback(msg, idx),
+                10
+            )
+            self._velocity_subs.append(sub)
+            print(f"[Bridge] Subscribed to velocity commands on: {topic_name}")
+
+    def _cmd_vel_callback(self, msg, idx):
+        """수신된 Twist 메시지를 go2_ctrl의 전역 텐서에 주입"""
+        if go2_ctrl.base_vel_cmd_input is not None:
+            go2_ctrl.base_vel_cmd_input[idx, 0] = msg.linear.x
+            go2_ctrl.base_vel_cmd_input[idx, 1] = msg.linear.y
+            go2_ctrl.base_vel_cmd_input[idx, 2] = msg.angular.z
 
     def _setup_camera_publishers(self):
         """라이터 대신 OmniGraph의 ROS2 Camera Helper 노드를 직접 생성"""
@@ -140,6 +175,9 @@ class RobotDataManager:
     # RobotDataManager 클래스 내부
     def update(self):
         """매 프레임마다 호출되어 ROS 2 데이터를 업데이트"""
+        # ROS 2 콜백 처리 (비동기 메시지 수신)
+        rclpy.spin_once(self.node, timeout_sec=0)
+
         # Isaac Lab Tensor 데이터 가져오기 (unitree_go2는 Scene에 등록된 이름)
         robot_data = self.env.unwrapped.scene["go2"].data
         
@@ -172,3 +210,8 @@ class RobotDataManager:
             except Exception as e:
                 # 시뮬레이션 초기화 단계에서 노드가 아직 없을 때 에러 방지
                 pass
+
+    def destroy_node(self):
+        """시뮬레이션 종료 시 노드 정리"""
+        if hasattr(self, 'node'):
+            self.node.destroy_node()
