@@ -14,7 +14,9 @@ parser = argparse.ArgumentParser(description="Unitree go2 ros2 setup")
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-args_cli.kit_args = "--/renderer/multiGpu/enabled=true --/renderer/multiGpu/maxGpuCount=2" 
+args_cli.enable_cameras = True
+args_cli.kit_args = "--/renderer/multiGpu/enabled=true --/renderer/multiGpu/maxGpuCount=2"
+
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -55,6 +57,10 @@ def run_simulator(cfg):
     go2_env_cfg.sim.render_interval = go2_env_cfg.decimation
     go2_env_cfg.scene.num_envs = cfg.num_envs
     go2_ctrl.init_base_vel_cmd(cfg.num_envs)
+    
+    # Apply sensor transforms from config to environment
+    go2_env_cfg.scene.front_cam.offset.pos = tuple(cfg.sensor.camera.pos)
+    go2_env_cfg.scene.front_cam.offset.rot = tuple(cfg.sensor.camera.rot)
 
     env, policy = go2_rl_env(go2_env_cfg, cfg)
 
@@ -72,7 +78,7 @@ def run_simulator(cfg):
         sim_env.create_office_env() # office
 
     # Sensor setup
-    sm = sensor_manager(cfg.num_envs)
+    sm = sensor_manager(cfg)
     # cameras, lidars
     lidars = sm.create_lidar()
     cameras = env.unwrapped.scene["front_cam"]
