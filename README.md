@@ -66,7 +66,22 @@ python run_simul.py
 [스크린캐스트 01-07-2026 12:06:04 PM.webm](https://github.com/user-attachments/assets/67bed969-d5be-4c21-b6e6-3f0aea80a846)
 
 ---
+
+# sensor data in rviz2
+
+
+https://github.com/user-attachments/assets/f8bd2119-15e2-4b36-aef7-004237933598
+
+
+
 # Importing Go2 into a Digital Twin environment
 
 https://github.com/user-attachments/assets/5931b57b-1448-4586-883c-942dbf16f299
+
+
+# integrating Go2 with nav2 packages
+
+
+https://github.com/user-attachments/assets/5bbaa14e-aedf-49ea-89d3-3b0d12031300
+
 
